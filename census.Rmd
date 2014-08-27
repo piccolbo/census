@@ -8,16 +8,23 @@ output:
 library(knitr)
 library(ggplot2)
 library(xtable)
-suppressPackageStartupMessages(library(randomForest))
+suppressPackageStartupMessages(suppressWarnings(library(randomForest)))
 library(fastICA)
 opts_chunk$set(echo = TRUE, cache = TRUE)
 ```
 
 An unbiased analysis of census data reveals not one but many maps of the United States.
+```{r fig.width=5, fig.height=3, echo=FALSE}
+ggplot(choropleth, aes(map_id  = id )) + 
+  scale_fill_gradient2(low = "dark blue",  mid = "grey", high = "dark red") + 
+  geom_map(aes(fill = X1), map = choropleth) + 
+  expand_limits(x = choropleth$long, y = choropleth$lat) +
+  xlab("") + ylab("")
+```
 
 <!-- more -->
 
-The original inspiration for this post comes from a New York Times [article](http://www.nytimes.com/2014/06/26/upshot/where-are-the-hardest-places-to-live-in-the-us.html). By combining 6 socio-economic observables at a the county level, the author puts together a map that in his view describes where life is hard in America. My goal here is not the question the map or the conclusions, but to look at the method. The choice of the 6 variables ("education (percentage of residents with at least a bachelor’s degree), median household income, unemployment rate, disability rate, life expectancy and obesity") may seem pretty uncontroversial at first. But right in the comments you can find reasonable complaints -- and a few creative ones. Why obesity and not some other disease? And how can income be compared when cost of living is so different among different counties? Why not include *natural beauty* in the statistics? Then there is the issue of combining the 6 variables. One can't average life expectancy and income, or weight and education. So the author decides to take the ranks of each variable and average those, but that may sound neutral but it isn't. It's like saying that the difference in income between the richest and poorest county, about $85k, is equivalent to the difference in life expectancy, 11 years. If it were my life, I'd put a higher price on it. Only moderately reassuring is the claim that the ranks are highly correlated and slight variations in the method, such as exluding a variable, are of little consequence. The other problem I have with this method is that it aims straight for the conclusion, but one suspects there is more in the data. It's easy to find counties that rank pretty high overall but where the median income is not that high or other discrepancies. Even if the main story is that those 6 variables are correlated, one would like to hear about the side plots.
+The original inspiration for this post comes from a New York Times [article](http://www.nytimes.com/2014/06/26/upshot/where-are-the-hardest-places-to-live-in-the-us.html). By combining 6 socio-economic observables at a the county level, the author puts together a map that in his view describes where life is hard in America. My goal here is not the question that map or the article's conclusions, but to revisit its methods. The choice of the 6 variables -- "education (percentage of residents with at least a bachelor’s degree), median household income, unemployment rate, disability rate, life expectancy and obesity" -- may seem pretty uncontroversial at first. But right in the comments you can find reasonable complaints -- and a few creative ones. Why obesity and not some other disease? And how can income be compared when cost of living is so different among different counties? Why not include *natural beauty* in the statistics? Then there is the issue of combining the 6 variables. One can't average life expectancy and income, or weight and education. So the author decides to take the ranks of each variable and average those. That may sound neutral but it isn't. It's like saying that the difference in income between the richest and poorest county, about $85k, is equivalent to the difference in life expectancy, 11 years. If it were my life, I'd put a higher price on it. Only moderately reassuring is the claim that the ranks are highly correlated and slight variations in the method, such as excluding a variable, are of little consequence. The other problem I have with this method is that it aims straight for the conclusion, but one suspects there is more in the data. It's easy to find counties that rank pretty high overall but where the median income is not that high or other discrepancies. Even if the main story is that those 6 variables are correlated, one would like to hear about the side plots.
 
 The starting point of my investigation is the [census data](http://www.census.gov/support/USACdataDownloads.html). I used `unzip`, `xls2csv` and `split` to get csv files -- the latter step is because `xls2csv` concatenates multiple sheets during the conversion, but luckily they are all the same length. Once that's done, we start creating a data frame
 
@@ -55,7 +62,7 @@ mastdata = read.csv("csv/Mastdata.csv")
 row.names(mastdata) = mastdata$Item_Id
 ```
 
-What we have in `census` are about 6000 variables for more than 3000 counties. Not 6 carefully hand picked ones. It's a lot of variables to get to understand one by one, but they come in related groups: population, economy, society etc. There is also data for several decades, at least for some variables. The units are also variable: counts, dollars, years summarized in various ways as absolute, average, median, rank, per unit and more. So you can have variables such as "Private nonfarm annual payroll", measured in thousands of dollars or "Nonfederal physicians - inactive (Dec. 31) 2006" as an absolute count. My plan was to use pretty general methods without relying on domain knowledge at all. But my first pass analysis hit a roadblock, which is that counties have the most variable population size and that is a confounding factor for anything that happens to individuals. A large total income doesn't make people rich in a county that includes a large town. The methods I describe in the following technically work even without the normalization step I will now describe, but the results were difficult to interpret. The normalization step was simply to divide any absolute count by the average of county population in two different years (because counties can merge or disappear). To find the absolute counts, since the metadata is ambiguous, I used a search pattern on the variable descriptions. It works for most variables, and for the rest we need to rely on the robustness of the methods we will employ.
+What we have in `census` are about 6000 variables for more than 3000 counties. Not 6 carefully hand picked ones. It's a lot of variables to get to understand one by one, but they come in related groups: population, economy, society etc. There is also data for several decades, at least for some variables. The units are also variable: counts, dollars, years and they are summarized in various ways as absolute, average, median, rank, per unit and more. So you can have variables such as "Private nonfarm annual payroll", measured in thousands of dollars or "Nonfederal physicians - inactive (Dec. 31) 2006" as an absolute count. My plan was to use pretty general methods without relying on domain knowledge at all. But my first pass analysis hit a roadblock, which is that counties have the most variable population size and that is a confounding factor for anything that happens to individuals. A large total income doesn't make people rich in a county that includes a large town. The methods I describe in the following technically work even without the normalization step I will now describe, but the results were difficult to interpret. The normalization step was simply to divide any absolute count by the average of county population in two different years (because counties can merge or disappear). To find the absolute counts, since the metadata is ambiguous, I used a search pattern on the variable descriptions. It works for most variables, and for the rest we need to rely on the robustness of the methods we will employ.
 
 ```{r}
 already.normalized = 
@@ -79,28 +86,31 @@ At this point the plan called for a principal component analysis of the data, bu
 
 What is a method to summarize this data that is the most assumption free? Well, I don't know about "the most", but surely random forests can handle variables measured in different units and related in non-linear ways. Unfortunately, I know applications of random forests to classification and regression, but there's no response variable here. After a little research I found out that it is possible to use random forests in unsupervised mode. It's based on creating a synthetic control data set and then training the random forest to classify real vs. synthetic data. The result is a proximity matrix among data points "based on the frequency that pairs of data points are in the same terminal nodes". I am quoting from the documentation of package `randomForest` because in R, luckily, there's a package for that.
 
-```{r}
-load(".RData")
-#censusn.urf <- randomForest(censusn[, 3:6428])
+```{r eval=FALSE}
+censusn.urf <- randomForest(censusn[, 3:6428])
 ```
 
-This takes several hours. The only columns exluded are county name, state and census code.
+This takes several hours. The only columns excluded are county name, state and census code.
 
-The proximity matrix can be embedded exactly in high dimension and then a number of techniques can be used to project it to a lower dimension while trying to preserve distances. `randomForest` comes with the function `MDSplot` to do just that, so why not use it?  
+The proximity matrix can be embedded exactly in high dimension and then a number of techniques can be used to project it to a lower dimension while trying to preserve distances. `randomForest` comes with the function `cmdscale` to do just that, so why not use it?  
 
 ```{r results='hide'}
 mdsn = cmdscale(1 - censusn.urf$proximity, k = 10, eig = TRUE)
 ```
 
+This function does compute a PCA and returns, among other things, the sorted eigenvalues, and we can see how they decrease rapidly. That's a good sign. 
+
 ```{r}
 qplot(1:length(mdsn$eig), mdsn$eig)
 ```
+
+We can also plot all the projected points in any two of the dimensions. It is easy to observe that there are dependencies between dimensions (while they should be uncorrelated, according to PCA theory).  
 
 ```{r  fig.width=15, fig.height=15}
 pairs(mdsn$points, pch = ".") 
 ```
 
-This function does compute a PCA and returns, among other things, the sorted eigenvalues, and we can see how they decrease rapidly. That's a good sign. We can also plot all the projected points in any two of the dimensions. It is easy to observe that there are dependencies between dimensions (while they should be uncorrelated, according to PCA theory).  To eliminate depndencies there is a tecnique, called Independent Component Analysis, and a package for that, `fastICA`. The result of the `MDSplot` function can be used as a starting point for this additional step.
+To eliminate dependencies there is a technique, called Independent Component Analysis, and a package for that, `fastICA`. The result of the `cmdscale` function can be used as a starting point for this additional step.
 
 
 ```{r fig.width=15, fig.height=15}
@@ -134,11 +144,12 @@ I am not sure why the `unique` and `fortify` calls are necessary, but I adapted 
 ggplot(choropleth, aes(map_id  = id )) + 
   scale_fill_gradient2(low = "dark blue",  mid = "grey", high = "dark red") + 
   geom_map(aes(fill = X1), map = choropleth) + 
-  expand_limits(x = choropleth$long, y = choropleth$lat) 
+  expand_limits(x = choropleth$long, y = choropleth$lat) +
+  xlab("") + ylab("")
 ```
 
 If the experts see a way to simplify this somewhat involved code, please help. In particular, it doesn't seem to do much without the `expand_limits`, so what is the point of `geom_map` alone?
-We immediately see some similarities and some differences with the New York Times map that was the inspiration for this article. We see filled in red large parts of the south-east and California, but little of Appalachia, the lakes region of the central west coast, which are also listed as doing worse inthe NYT map. We need some assistance in interpreting these results. One approach is finding original variables that are correlated or anti-correlated with the summarized variables. Because of previous observations on linearity of the data or lack thereof, we shall use *Spearman correlation*. The other is to find "champions", input data points that occupy the extremes of the scale defined by each summarized variable. I found the first enlightening, the second more entertaining or distracting (wikipedia has an article about each county). I know there are other approaches to intepreting this kind of summaries, please chip in in the comments to suggest additional ones. 
+We immediately see some similarities and some differences with the New York Times map that was the inspiration for this article. We see filled in blue large parts of the south-east, but little of Appalachia or southern California, the lakes region of the central west coast, which are also listed as doing worse in the NYT map. We need some assistance in interpreting these results. One approach is finding original variables that are correlated or anti-correlated with the summarized variables. Because of previous observations on linearity of the data or lack thereof, we shall use *Spearman correlation*. The other is to find "champions", input data points that occupy the extremes of the scale defined by each summarized variable. I found the first enlightening, the second more entertaining or distracting (Wikipedia has an article about each county). I know there are other approaches to interpreting this kind of summaries, please chip in in the comments to suggest additional ones. 
 
 First let's prepare some data to assist the interpretations
 
@@ -148,73 +159,136 @@ cormat = cor(icadf[, 4:13], censusn[,3:6428], method = "spearman")
 champions = apply(icadf[,4:13], 2, function(x) as.character(icadf$areaname[c(which.min(x), which.max(x))]))
 ```
 
-Unfortunately going through long lists of highly correlated variables is not a particularly fun task, so that I will summarize them for you. The summaries are manual and somewhat arbitrary, you can find the list of variables, one dimension at a time, in the appendix. Package `xtable` will help with formatting a long-ish list of variables
+Unfortunately going through long lists of highly correlated variables is not a particularly fun task. I will try to summarize my interpretation, which is non rigorous, but you can find full tables of 100 most and least correlated variables in the appendix, linked from each figure. Package `xtable` will help with formatting a long-ish list of variables
 
+This is the function that generates maps, champions and links
 ```{r}
 eigenmap =
   function(i) {
-    cat(paste0("<br>Champions: ", paste(champions[2:1,i], collapse = " and "), "(red, blue)<br>"))
+    cat(
+      paste0(
+        "<br>Champions: ", 
+        paste0(
+          "<a href=\"https://en.wikipedia.org/wiki/",
+          sub(",", "_County,", 
+              sub(" ", "_", as.character(champions[2:1,i]))), 
+          "\">",
+          as.character(champions[2:1,i]),
+          "</a>",
+          collapse = " and "), 
+        "(red, blue)<br>"))
     cat(paste0("[Descriptive variables](#dv", i, ")<br>"))
     dim = names(choropleth)[7 + i]
     print(
       ggplot(choropleth, aes(map_id  = id )) + 
         scale_fill_gradient2(low = "dark blue", mid = "grey", high ="dark red") + 
         geom_map(aes_string(fill = dim), map = choropleth) + 
-        expand_limits(x = choropleth$long, y = choropleth$lat))}
+        expand_limits(x = choropleth$long, y = choropleth$lat))+
+      xlab("") + ylab("")}
 ```
 
+This is the one that creates tables of important variables.
 ```{r  }
 important.variables =
   function(i) {
-    cat(paste0("<a name=\"dv", i, "\"></a>"))
+    cat(paste0("<a name=\"dv", i, "\"><h3>Component ", i, "</h3></a>"))
     lapply(list(TRUE, FALSE),
            function(x){
-             cat(if(x) "<h3>red</h3>" else "<h3>blue</h3>")
+             cat(if(x) "<br><h3>Correlated: red</h3>" else "<h3>Anticorrelated: blue</h3>")
              print(
                xtable(
                  data.frame(
-                   sort(
-                     mastdata$Item_Description[
-                       which (
-                         is.element(
-                           mastdata$Item_Id, names(head(sort(cormat[i,], decreasing = x), 100))))]))),
+                   `Variable Description` =
+                     sort(
+                       mastdata$Item_Description[
+                         which (
+                           is.element(
+                             mastdata$Item_Id, names(head(sort(cormat[i,], decreasing = x), 100))))]))),
                type = "html")})}
 ```
 
+And now, without further ado, the maps.
+
+## South and Midwest vs New England and West
+
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(1)
+eigenmap(1) 
 ```
+
+This is the first one we saw, but now we can go pick at the table of important variables to try and find out what this means. It's not simply the hard life divide as in the New York Times. There's a variety of minorities on the red side, foreign speakers and naturalized citizens, hotels and restaurants. The blue side has more black people, a higher mortality rate, lower educational achievement, employment in farms and manufacturing and fewer vehicles available. Fun fact: more people walk to work on the red side. At the risk of stating the obvious, this is not a clustering or partitioning of the counties, so there will be other dimensions associated to each of the counties. This is just an underlying component. Unfortunately after the ICA step the natural eigenvalue ordering of principal components is no longer available.
+
+
+## Upper Midwest
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(2)
+eigenmap(2) 
 ```
+
+
+The related variables include cropland, educational achievement, farm operators, larger farms, government spending not directed to individuals, older houses, home workers, rural and white. The blue area covers most of the rest of the country. Maybe it's more intuitive to think of these variables as lower in the red areas rather than higher elsewhere, but it's all relative. From the "blue" perspective we see lower educational achievement, single moms, separated people, poverty and supplemental security income. 
+
+## Texas, Oklahoma and Kansas
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(3)
+eigenmap(3) 
 ```
+
+Here the red is mostly concentrated in those three states,  with a sprinkling over Appalachia. The related variables tells us that red means older farmers, longer commutes, recent domestic immigration, a higher death rate until 1985, smaller farms, lots of construction, home ownership and whiter and older people. Blue areas instead have more population but only until the early 80s, a higher birth rate until the early 90s, a bigger labor force, local government and personal income, and more kids enrolled in school, also limited to years before 1990.
+
+## The Great Plains
+
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(4)
+eigenmap(4) 
 ```
+
+This map is very well delineated with few dark blue regions. The red areas, which are not very strong and diffuse, so think of these as opposed to the Great Plains, have more unemployment, people with disabilities, lower educational achievement, supplemental security income, carpooling, poverty and school enrollment. If you noticed that some variables are repeating, it may also be because I am simplifying a lot. The census data has a lot of detail as far as years, segments of the population etc. Access the table in the Appendix to find your own interpretation. The blue areas have bigger farms, more employment, educational achievement, government spending not directed at individuals, government insurance, property taxes and personal income, an older and Republican leaning population.
+
+## Detroit and Milwaukee
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(5)
+eigenmap(5) 
 ```
+
+The read areas are manufacturing-dominated areas, with higher median income. On the other hand, the blue areas have less health insurance, more poverty and vacant housing. This is a bit surprising with what happened to the car industry, but I don't see clear signs of decline among the related variables.
+
+## The Mississippi
+
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(6)
+eigenmap(6) 
 ```
+
+The red areas have an older population using Medicare, retirement benefits and with more veterans. The blue areas have higher unemployment, poverty, federal grants, children, declining population and lean Democratic.
+
+## Coastal Metropolises
+
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(7)
+eigenmap(7) 
 ```
+
+The red areas have high employment in farming, small family run farms, home ownership, rural population, leaning Reform party (kid you not). The blue areas have more education, health and social services, more management, more finance, insurance and real estate and more minority-owned firms.
+
+## Appalachia and upper Michigan vs Colorado and Texas.
+
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(8)
+eigenmap(8) 
 ```
+
+The red areas have an older, whiter population using Medicare and Social Security. The blue areas have large farms with a strong Latino presence and more renters.
+
+## Growing suburbia
+
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(9)
+eigenmap(9) 
 ```
+This map show a very interesting ring pattern around some cities, including Atlanta, Dallas an Minneapolis. The red area show strong population increase, including migration, and increase in available housing and high median income. The blue areas have a higher death rate, Federal Government payments to individuals, more widows, single person households and older people receiving social security.
+
+## Pennsylvania
 ```{r results='asis', fig.width=15, fig.height=10}
-eigenmap(10)
+eigenmap(10) 
 ```
+
+The red areas receive more retirement and disability benefits, have a strong Defense presence, multi-unit older homes and single households. Many people live in group quarters, particularly college dorms and there seem to be a declining older population. The blue areas are short on health insurance, have a strong Mexican presence, a younger, increasing population and lots of transporting and warehousing activity.
 
 ## Appendix: Tables of variable correlated and anticorrelated to each independent component.
 
 ```{r results='asis'  }
-invisible(sapply(1:10, important.variables))
+invisible(sapply(1:10, important.variables)) 
 ```
 
