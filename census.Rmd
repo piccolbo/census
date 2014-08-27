@@ -140,7 +140,7 @@ choropleth =
 I am not sure why the `unique` and `fortify` calls are necessary, but I adapted available examples. The process is imperfect, due to variation in the naming and spelling of counties between the two data sources. It's possible to do [better](http://blog.revolutionanalytics.com/2009/11/choropleth-challenge-result.html), but I didn't want to go on a long diversion only for a handful of counties. [Pull requests](https://github.com/piccolbo/census) are welcome. And here's our first map, based on the first independent component:
 
 
-```{r fig.width=15, fig.height=10}
+```{r fig.width=15, fig.height=8}
 ggplot(choropleth, aes(map_id  = id )) + 
   scale_fill_gradient2(low = "dark blue",  mid = "grey", high = "dark red") + 
   geom_map(aes(fill = X1), map = choropleth) + 
@@ -183,8 +183,8 @@ eigenmap =
       ggplot(choropleth, aes(map_id  = id )) + 
         scale_fill_gradient2(low = "dark blue", mid = "grey", high ="dark red") + 
         geom_map(aes_string(fill = dim), map = choropleth) + 
-        expand_limits(x = choropleth$long, y = choropleth$lat))+
-      xlab("") + ylab("")}
+        expand_limits(x = choropleth$long, y = choropleth$lat) +
+        xlab("") + ylab(""))}
 ```
 
 This is the one that creates tables of important variables.
@@ -211,15 +211,15 @@ And now, without further ado, the maps.
 
 ## South and Midwest vs New England and West
 
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(1) 
 ```
 
-This is the first one we saw, but now we can go pick at the table of important variables to try and find out what this means. It's not simply the hard life divide as in the New York Times. There's a variety of minorities on the red side, foreign speakers and naturalized citizens, hotels and restaurants. The blue side has more black people, a higher mortality rate, lower educational achievement, employment in farms and manufacturing and fewer vehicles available. Fun fact: more people walk to work on the red side. At the risk of stating the obvious, this is not a clustering or partitioning of the counties, so there will be other dimensions associated to each of the counties. This is just an underlying component. Unfortunately after the ICA step the natural eigenvalue ordering of principal components is no longer available.
+This is the first one we saw, but now we can go pick at the table of important variables to try and find out what this means. It's not simply the hard life divide as in the New York Times. There's a variety of minorities on the red side, foreign speakers and naturalized citizens, hotels and restaurants. The blue side has more black people, a higher mortality rate, lower educational achievement, employment in farms and manufacturing and fewer vehicles available. Fun fact: more people walk to work on the red side. At the risk of stating the obvious, this is not a clustering or partitioning of the counties, so there will be other dimensions associated to each of them. This is just an underlying component. Unfortunately after the ICA step the natural eigenvalue ordering of principal components is no longer available, so I can't tell which component is more important.
 
 
 ## Upper Midwest
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(2) 
 ```
 
@@ -227,7 +227,7 @@ eigenmap(2)
 The related variables include cropland, educational achievement, farm operators, larger farms, government spending not directed to individuals, older houses, home workers, rural and white. The blue area covers most of the rest of the country. Maybe it's more intuitive to think of these variables as lower in the red areas rather than higher elsewhere, but it's all relative. From the "blue" perspective we see lower educational achievement, single moms, separated people, poverty and supplemental security income. 
 
 ## Texas, Oklahoma and Kansas
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(3) 
 ```
 
@@ -235,14 +235,14 @@ Here the red is mostly concentrated in those three states,  with a sprinkling ov
 
 ## The Great Plains
 
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(4) 
 ```
 
 This map is very well delineated with few dark blue regions. The red areas, which are not very strong and diffuse, so think of these as opposed to the Great Plains, have more unemployment, people with disabilities, lower educational achievement, supplemental security income, carpooling, poverty and school enrollment. If you noticed that some variables are repeating, it may also be because I am simplifying a lot. The census data has a lot of detail as far as years, segments of the population etc. Access the table in the Appendix to find your own interpretation. The blue areas have bigger farms, more employment, educational achievement, government spending not directed at individuals, government insurance, property taxes and personal income, an older and Republican leaning population.
 
 ## Detroit and Milwaukee
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(5) 
 ```
 
@@ -250,7 +250,7 @@ The read areas are manufacturing-dominated areas, with higher median income. On 
 
 ## The Mississippi
 
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(6) 
 ```
 
@@ -258,7 +258,7 @@ The red areas have an older population using Medicare, retirement benefits and w
 
 ## Coastal Metropolises
 
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(7) 
 ```
 
@@ -266,7 +266,7 @@ The red areas have high employment in farming, small family run farms, home owne
 
 ## Appalachia and upper Michigan vs Colorado and Texas.
 
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(8) 
 ```
 
@@ -274,19 +274,26 @@ The red areas have an older, whiter population using Medicare and Social Securit
 
 ## Growing suburbia
 
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(9) 
 ```
 This map shows a very interesting ring pattern around some cities, including Atlanta, Dallas an Minneapolis. The red areas show strong population increase, including migration, and increase in available housing and high median income. The blue areas have a higher death rate, Federal Government payments to individuals, more widows, single person households and older people receiving social security.
 
 ## Pennsylvania
-```{r results='asis', fig.width=15, fig.height=10}
+```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(10) 
 ```
 
 The red areas receive more retirement and disability benefits, have a strong Defense presence, multi-unit older homes and single households. Many people live in group quarters, particularly college dorms and there seem to be a declining older population. The blue areas are short on health insurance, have a strong Mexican presence, a younger, increasing population and lots of transporting and warehousing activity.
 
-## Appendix: Tables of variable correlated and anticorrelated to each independent component.
+## Conclusion
+
+This is a set of fascinating maps, at least for a data and map geek such as myself. Like many applications of unsupervised learning, they raise more questions than they answer. The skills of a social scientist would greatly enhance the interpretation of these maps. If anybody wants to dig deeper without going back to the original data, please [let me know](mailto:antonio@piccolboni.info). Also, it seems to me the county level of detail hides important differences, particularly in urban areas. My goal was just to show that one can analyze the data without making a lot of somewhat arbitrary choices and that there are more than one map of this great, multidimensional country.
+
+
+
+
+## Appendix: Tables of variables correlated and anticorrelated to each independent component.
 
 ```{r results='asis'  }
 invisible(sapply(1:10, important.variables)) 
