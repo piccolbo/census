@@ -1,0 +1,220 @@
+---
+output: 
+  html_fragment:
+    keep_md: true
+---
+
+```{r echo = FALSE, cache=FALSE}
+library(knitr)
+library(ggplot2)
+library(xtable)
+suppressPackageStartupMessages(library(randomForest))
+library(fastICA)
+opts_chunk$set(echo = TRUE, cache = TRUE)
+```
+
+An unbiased analysis of census data reveals not one but many maps of the United States.
+
+<!-- more -->
+
+The original inspiration for this post comes from a New York Times [article](http://www.nytimes.com/2014/06/26/upshot/where-are-the-hardest-places-to-live-in-the-us.html). By combining 6 socio-economic observables at a the county level, the author puts together a map that in his view describes where life is hard in America. My goal here is not the question the map or the conclusions, but to look at the method. The choice of the 6 variables ("education (percentage of residents with at least a bachelor’s degree), median household income, unemployment rate, disability rate, life expectancy and obesity") may seem pretty uncontroversial at first. But right in the comments you can find reasonable complaints -- and a few creative ones. Why obesity and not some other disease? And how can income be compared when cost of living is so different among different counties? Why not include *natural beauty* in the statistics? Then there is the issue of combining the 6 variables. One can't average life expectancy and income, or weight and education. So the author decides to take the ranks of each variable and average those, but that may sound neutral but it isn't. It's like saying that the difference in income between the richest and poorest county, about $85k, is equivalent to the difference in life expectancy, 11 years. If it were my life, I'd put a higher price on it. Only moderately reassuring is the claim that the ranks are highly correlated and slight variations in the method, such as exluding a variable, are of little consequence. The other problem I have with this method is that it aims straight for the conclusion, but one suspects there is more in the data. It's easy to find counties that rank pretty high overall but where the median income is not that high or other discrepancies. Even if the main story is that those 6 variables are correlated, one would like to hear about the side plots.
+
+The starting point of my investigation is the [census data](http://www.census.gov/support/USACdataDownloads.html). I used `unzip`, `xls2csv` and `split` to get csv files -- the latter step is because `xls2csv` concatenates multiple sheets during the conversion, but luckily they are all the same length. Once that's done, we start creating a data frame
+
+```{r}
+files = list.files("splits/")
+read.one =
+  function(fname)
+    read.csv(file.path("splits", fname), nrows = 3198, fill = FALSE)
+clean.one =
+  function (df)
+    df[,sapply(df, function(x) length(unique(x))) >50]
+all = lapply(files, function(x) clean.one(read.one(x)))
+census = do.call(cbind, all)
+```
+
+The cleaning starts removing columns that don't really represent observables but metadata, like notes about how the data was collected. The heuristic of containing at least 50 distinct values to be an interesting variable was tested on a sampling of columns and seems to be good enough. The next steps are filtering steps to remove repeated columns, one odd non numeric column and rows representing states instead of counties.
+
+```{r}
+census = census[, unique(names(census))]
+census = census[, -1993]
+census = census [grep(census$Areaname, pattern = ","), ]
+```
+
+We are also later going to need separate columns with county name and state, so let's add them right away.
+
+```{r}
+census$state = unlist(strsplit(as.character(census$Areaname), split = ", "))[c(F,T)]
+census$county = tolower(unlist(strsplit(as.character(census$Areaname), split = ", "))[c(T,F)])
+```
+
+The last bit of data is the metadata file with explanations for each variable.
+
+```{r}
+mastdata = read.csv("csv/Mastdata.csv")
+row.names(mastdata) = mastdata$Item_Id
+```
+
+What we have in `census` are about 6000 variables for more than 3000 counties. Not 6 carefully hand picked ones. It's a lot of variables to get to understand one by one, but they come in related groups: population, economy, society etc. There is also data for several decades, at least for some variables. The units are also variable: counts, dollars, years summarized in various ways as absolute, average, median, rank, per unit and more. So you can have variables such as "Private nonfarm annual payroll", measured in thousands of dollars or "Nonfederal physicians - inactive (Dec. 31) 2006" as an absolute count. My plan was to use pretty general methods without relying on domain knowledge at all. But my first pass analysis hit a roadblock, which is that counties have the most variable population size and that is a confounding factor for anything that happens to individuals. A large total income doesn't make people rich in a county that includes a large town. The methods I describe in the following technically work even without the normalization step I will now describe, but the results were difficult to interpret. The normalization step was simply to divide any absolute count by the average of county population in two different years (because counties can merge or disappear). To find the absolute counts, since the metadata is ambiguous, I used a search pattern on the variable descriptions. It works for most variables, and for the rest we need to rely on the robustness of the methods we will employ.
+
+```{r}
+already.normalized = 
+  grep(
+    "mean |median |rate |average | percent |per ", 
+    mastdata$Item_Description, 
+    ignore.case = TRUE)
+unnormalized = 
+  grep("used for", mastdata$Item_Description, ignore.case = TRUE)
+normalize.mask = 
+  c(1,2, 6429, 6430, 
+    match(mastdata$Item_Id[setdiff(already.normalized, unnormalized)], names(census)))
+normalize.mask = normalize.mask[!is.na(normalize.mask)]
+
+censusn = census
+censusn [, -normalize.mask] =
+  census [, -normalize.mask]/(census$POP010210D + census$POP010130D + 1)
+```
+
+At this point the plan called for a principal component analysis of the data, but optimism is not enough to make it work. The sequence of sorted eigenvalues was decreasing way too slowly, which  means the data doesn't fit the linear assumptions behind PCA very well. You may say that was to be expected even from the cursory description of the variables above, but there's nothing like trying and looking at the diagnostics. 
+
+What is a method to summarize this data that is the most assumption free? Well, I don't know about "the most", but surely random forests can handle variables measured in different units and related in non-linear ways. Unfortunately, I know applications of random forests to classification and regression, but there's no response variable here. After a little research I found out that it is possible to use random forests in unsupervised mode. It's based on creating a synthetic control data set and then training the random forest to classify real vs. synthetic data. The result is a proximity matrix among data points "based on the frequency that pairs of data points are in the same terminal nodes". I am quoting from the documentation of package `randomForest` because in R, luckily, there's a package for that.
+
+```{r}
+load(".RData")
+#censusn.urf <- randomForest(censusn[, 3:6428])
+```
+
+This takes several hours. The only columns exluded are county name, state and census code.
+
+The proximity matrix can be embedded exactly in high dimension and then a number of techniques can be used to project it to a lower dimension while trying to preserve distances. `randomForest` comes with the function `MDSplot` to do just that, so why not use it?  
+
+```{r results='hide'}
+mdsn = cmdscale(1 - censusn.urf$proximity, k = 10, eig = TRUE)
+```
+
+```{r}
+qplot(1:length(mdsn$eig), mdsn$eig)
+```
+
+```{r  fig.width=15, fig.height=15}
+pairs(mdsn$points, pch = ".") 
+```
+
+This function does compute a PCA and returns, among other things, the sorted eigenvalues, and we can see how they decrease rapidly. That's a good sign. We can also plot all the projected points in any two of the dimensions. It is easy to observe that there are dependencies between dimensions (while they should be uncorrelated, according to PCA theory).  To eliminate depndencies there is a tecnique, called Independent Component Analysis, and a package for that, `fastICA`. The result of the `MDSplot` function can be used as a starting point for this additional step.
+
+
+```{r fig.width=15, fig.height=15}
+ica = fastICA(mdsn$points, n.comp = 10)
+pairs(ica$S, pch = ".") 
+```
+
+That looks good enough for me. Let's get to mapping! I am going to use the package `ggplot2` and its very useful `geom_map`. A map with shaded areas is called a *choropleth*. The first thing is to link the ICA results with the mapping data, from package `maps`.
+
+```{r}
+icadf = 
+  data.frame(
+    cbind(
+      data.frame(
+        county  = census$county, 
+        state = census$state, 
+        areaname = census$Areaname), 
+      ica$S))
+choropleth = 
+  unique(merge(county_df, icadf, by = c("state", "county")))
+choropleth = 
+  choropleth[order(choropleth$order), ]
+choropleth = 
+  fortify(choropleth)
+```
+
+I am not sure why the `unique` and `fortify` calls are necessary, but I adapted available examples. The process is imperfect, due to variation in the naming and spelling of counties between the two data sources. It's possible to do [better](http://blog.revolutionanalytics.com/2009/11/choropleth-challenge-result.html), but I didn't want to go on a long diversion only for a handful of counties. [Pull requests](todo) are welcome. And here's our first map, based on the first independent component:
+
+
+```{r fig.width=15, fig.height=10}
+ggplot(choropleth, aes(map_id  = id )) + 
+  scale_fill_gradient2(low = "dark blue",  mid = "grey", high = "dark red") + 
+  geom_map(aes(fill = X1), map = choropleth) + 
+  expand_limits(x = choropleth$long, y = choropleth$lat) 
+```
+
+If the experts see a way to simplify this somewhat involved code, please help. In particular, it doesn't seem to do much without the `expand_limits`, so what is the point of `geom_map` alone?
+We immediately see some similarities and some differences with the New York Times map that was the inspiration for this article. We see filled in red large parts of the south-east and California, but little of Appalachia, the lakes region of the central west coast, which are also listed as doing worse inthe NYT map. We need some assistance in interpreting these results. One approach is finding original variables that are correlated or anti-correlated with the summarized variables. Because of previous observations on linearity of the data or lack thereof, we shall use *Spearman correlation*. The other is to find "champions", input data points that occupy the extremes of the scale defined by each summarized variable. I found the first enlightening, the second more entertaining or distracting (wikipedia has an article about each county). I know there are other approaches to intepreting this kind of summaries, please chip in in the comments to suggest additional ones. 
+
+First let's prepare some data to assist the interpretations
+
+
+```{r}
+cormat = cor(icadf[, 4:13], censusn[,3:6428], method = "spearman")
+champions = apply(icadf[,4:13], 2, function(x) as.character(icadf$areaname[c(which.min(x), which.max(x))]))
+```
+
+Unfortunately going through long lists of highly correlated variables is not a particularly fun task, so that I will summarize them for you. The summaries are manual and somewhat arbitrary, you can find the list of variables, one dimension at a time, in the appendix. Package `xtable` will help with formatting a long-ish list of variables
+
+```{r}
+eigenmap =
+  function(i) {
+    cat(paste0("<br>Champions: ", paste(champions[2:1,i], collapse = " and "), "(red, blue)<br>"))
+    cat(paste0("[Descriptive variables](#dv", i, ")<br>"))
+    dim = names(choropleth)[7 + i]
+    print(
+      ggplot(choropleth, aes(map_id  = id )) + 
+        scale_fill_gradient2(low = "dark blue", mid = "grey", high ="dark red") + 
+        geom_map(aes_string(fill = dim), map = choropleth) + 
+        expand_limits(x = choropleth$long, y = choropleth$lat))}
+```
+
+```{r  }
+important.variables =
+  function(i) {
+    cat(paste0("<a name=\"dv", i, "\"></a>"))
+    lapply(list(TRUE, FALSE),
+           function(x){
+             cat(if(x) "<h3>red</h3>" else "<h3>blue</h3>")
+             print(
+               xtable(
+                 data.frame(
+                   sort(
+                     mastdata$Item_Description[
+                       which (
+                         is.element(
+                           mastdata$Item_Id, names(head(sort(cormat[i,], decreasing = x), 100))))]))),
+               type = "html")})}
+```
+
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(1)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(2)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(3)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(4)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(5)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(6)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(7)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(8)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(9)
+```
+```{r results='asis', fig.width=15, fig.height=10}
+eigenmap(10)
+```
+
+## Appendix: Tables of variable correlated and anticorrelated to each independent component.
+
+```{r results='asis'  }
+invisible(sapply(1:10, important.variables))
+```
+

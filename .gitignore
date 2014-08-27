@@ -1,3 +1,13 @@
+csv/*
+xls/*
+census_cache
+census_files
+zip
+splits
+census.md
+census.html
+census.Rproj
 .Rproj.user
 .Rhistory
 .RData
+census.R
