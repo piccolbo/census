@@ -137,7 +137,7 @@ choropleth =
   fortify(choropleth)
 ```
 
-I am not sure why the `unique` and `fortify` calls are necessary, but I adapted available examples. The process is imperfect, due to variation in the naming and spelling of counties between the two data sources. It's possible to do [better](http://blog.revolutionanalytics.com/2009/11/choropleth-challenge-result.html), but I didn't want to go on a long diversion only for a handful of counties. [Pull requests](todo) are welcome. And here's our first map, based on the first independent component:
+I am not sure why the `unique` and `fortify` calls are necessary, but I adapted available examples. The process is imperfect, due to variation in the naming and spelling of counties between the two data sources. It's possible to do [better](http://blog.revolutionanalytics.com/2009/11/choropleth-challenge-result.html), but I didn't want to go on a long diversion only for a handful of counties. [Pull requests](https://github.com/piccolbo/census) are welcome. And here's our first map, based on the first independent component:
 
 
 ```{r fig.width=15, fig.height=10}
@@ -277,7 +277,7 @@ The red areas have an older, whiter population using Medicare and Social Securit
 ```{r results='asis', fig.width=15, fig.height=10}
 eigenmap(9) 
 ```
-This map show a very interesting ring pattern around some cities, including Atlanta, Dallas an Minneapolis. The red area show strong population increase, including migration, and increase in available housing and high median income. The blue areas have a higher death rate, Federal Government payments to individuals, more widows, single person households and older people receiving social security.
+This map shows a very interesting ring pattern around some cities, including Atlanta, Dallas an Minneapolis. The red areas show strong population increase, including migration, and increase in available housing and high median income. The blue areas have a higher death rate, Federal Government payments to individuals, more widows, single person households and older people receiving social security.
 
 ## Pennsylvania
 ```{r results='asis', fig.width=15, fig.height=10}
