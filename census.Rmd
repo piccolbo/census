@@ -10,7 +10,7 @@ library(ggplot2)
 library(xtable)
 suppressPackageStartupMessages(suppressWarnings(library(randomForest)))
 library(fastICA)
-opts_chunk$set(echo = TRUE, cache = TRUE)
+opts_chunk$set(echo = TRUE, cache = TRUE, autodep = TRUE)
 ```
 
 An unbiased analysis of census data reveals not one but many maps of the United States.
@@ -86,7 +86,7 @@ At this point the plan called for a principal component analysis of the data, bu
 
 What is a method to summarize this data that is the most assumption free? Well, I don't know about "the most", but surely random forests can handle variables measured in different units and related in non-linear ways. Unfortunately, I know applications of random forests to classification and regression, but there's no response variable here. After a little research I found out that it is possible to use random forests in unsupervised mode. It's based on creating a synthetic control data set and then training the random forest to classify real vs. synthetic data. The result is a proximity matrix among data points "based on the frequency that pairs of data points are in the same terminal nodes". I am quoting from the documentation of package `randomForest` because in R, luckily, there's a package for that.
 
-```{r eval=FALSE}
+```{r}
 censusn.urf <- randomForest(censusn[, 3:6428])
 ```
 
