@@ -128,7 +128,7 @@ icadf =
         county  = census$county, 
         state = census$state, 
         areaname = census$Areaname), 
-      ica$S))
+      ica$S[,order(apply(ica$S, 2, sd), decreasing = TRUE)]))
 choropleth = 
   unique(merge(county_df, icadf, by = c("state", "county")))
 choropleth = 
@@ -159,7 +159,7 @@ cormat = cor(icadf[, 4:13], censusn[,3:6428], method = "spearman")
 champions = apply(icadf[,4:13], 2, function(x) as.character(icadf$areaname[c(which.min(x), which.max(x))]))
 ```
 
-Unfortunately going through long lists of highly correlated variables is not a particularly fun task. I will try to summarize my interpretation, which is non rigorous, but you can find full tables of 100 most and least correlated variables in the appendix, linked from each figure. Package `xtable` will help with formatting a long-ish list of variables
+Unfortunately going through long lists of highly correlated variables is not a particularly fun task. I will try to summarize a possible interpretation, which is very non rigorous, but you can find full tables of 100 most and least correlated variables in the appendix, linked from each figure.  Package `xtable` will help with formatting a long-ish list of variables. In particular, if you notice that certain variables repeat from one component to another, it may very well be because of temporal changes that I glossed over. For instance, two components with a strong white presence may be independent because one is correlating better with white presence in recent years, the other in past years.
 
 This is the function that generates maps, champions and links
 ```{r}
@@ -209,82 +209,87 @@ important.variables =
 
 And now, without further ado, the maps.
 
-## South and Midwest vs New England and West
+## The Great Plains
 
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(1) 
 ```
 
-This is the first one we saw, but now we can go pick at the table of important variables to try and find out what this means. It's not simply the hard life divide as in the New York Times. There's a variety of minorities on the red side, foreign speakers and naturalized citizens, hotels and restaurants. The blue side has more black people, a higher mortality rate, lower educational achievement, employment in farms and manufacturing and fewer vehicles available. Fun fact: more people walk to work on the red side. At the risk of stating the obvious, this is not a clustering or partitioning of the counties, so there will be other dimensions associated to each of them. This is just an underlying component. Unfortunately after the ICA step the natural eigenvalue ordering of principal components is no longer available, so I can't tell which component is more important.
+This map is very well delineated with few dark blue regions. The red areas are not lighter and spread out, so think of them as opposed to the Great Plains. They have more unemployment, people with disabilities, lower educational achievement, supplemental security income, carpooling, poverty and school enrollment. The blue areas have bigger farms, more employment, educational achievement, government spending not directed at individuals, government insurance, property taxes and personal income, an older and Republican leaning population.
 
 
-## Upper Midwest
+## Minnesota vs Michigan
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(2) 
 ```
 
+The red areas have stronger manifacturing, with higher median income. On the other hand, the blue areas have less health insurance, more poverty and vacant housing.
 
-The related variables include cropland, educational achievement, farm operators, larger farms, government spending not directed to individuals, older houses, home workers, rural and white. The blue area covers most of the rest of the country. Maybe it's more intuitive to think of these variables as lower in the red areas rather than higher elsewhere, but it's all relative. From the "blue" perspective we see lower educational achievement, single moms, separated people, poverty and supplemental security income. 
+## Appalachia and Ohio Valley vs Colorado and Texas.
 
-## Texas, Oklahoma and Kansas
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(3) 
 ```
 
-Here the red is mostly concentrated in those three states,  with a sprinkling over Appalachia. The related variables tells us that red means older farmers, longer commutes, recent domestic immigration, a higher death rate until 1985, smaller farms, lots of construction, home ownership and whiter and older people. Blue areas instead have more population but only until the early 80s, a higher birth rate until the early 90s, a bigger labor force, local government and personal income, and more kids enrolled in school, also limited to years before 1990.
+The red areas have an older, whiter population using Medicare and Social Security. The blue areas have large farms with a strong Latino presence and more renters.
 
-## The Great Plains
+
+## The Mississippi
 
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(4) 
 ```
 
-This map is very well delineated with few dark blue regions. The red areas, which are not very strong and diffuse, so think of these as opposed to the Great Plains, have more unemployment, people with disabilities, lower educational achievement, supplemental security income, carpooling, poverty and school enrollment. If you noticed that some variables are repeating, it may also be because I am simplifying a lot. The census data has a lot of detail as far as years, segments of the population etc. Access the table in the Appendix to find your own interpretation. The blue areas have bigger farms, more employment, educational achievement, government spending not directed at individuals, government insurance, property taxes and personal income, an older and Republican leaning population.
+The red areas have an older population using Medicare, retirement benefits and with more veterans. The blue areas have higher unemployment, poverty, federal grants, children, declining population and lean Democratic.
 
-## Detroit and Milwaukee
+## Texas, Oklahoma and Kansas
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(5) 
 ```
 
-The read areas are manufacturing-dominated areas, with higher median income. On the other hand, the blue areas have less health insurance, more poverty and vacant housing. This is a bit surprising with what happened to the car industry, but I don't see clear signs of decline among the related variables.
+Here the red is mostly concentrated in those three states,  with a sprinkling over Appalachia. The related variables tells us that red means older farmers, longer commutes, recent domestic immigration, a higher death rate until 1985, smaller farms, lots of construction, home ownership and whiter and older people. Blue areas instead have more population but only until the early 80s, a higher birth rate until the early 90s, a bigger labor force, local government and personal income, and more kids enrolled in school, also limited to years before 1990.
 
-## The Mississippi
+## Growing suburbia
 
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(6) 
 ```
+This map shows a very interesting ring pattern around some cities, including Atlanta, Dallas an Minneapolis. The red areas show strong population increase, including migration, and increase in available housing and high median income. The blue areas have a higher death rate, Federal Government payments to individuals, more widows, single person households and older people receiving social security.
 
-The red areas have an older population using Medicare, retirement benefits and with more veterans. The blue areas have higher unemployment, poverty, federal grants, children, declining population and lean Democratic.
-
-## Coastal Metropolises
+## South and Midwest vs New England and West
 
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(7) 
 ```
 
-The red areas have high employment in farming, small family run farms, home ownership, rural population, leaning Reform party (kid you not). The blue areas have more education, health and social services, more management, more finance, insurance and real estate and more minority-owned firms.
+There's a variety of minorities on the red side, foreign speakers and naturalized citizens, hotels and restaurants. The blue side has more black people, a higher mortality rate, lower educational achievement, employment in farms and manufacturing and fewer vehicles available. Fun fact: more people walk to work on the red side. 
 
-## Appalachia and upper Michigan vs Colorado and Texas.
-
+## Pennsylvania vs California and Texas
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(8) 
 ```
 
-The red areas have an older, whiter population using Medicare and Social Security. The blue areas have large farms with a strong Latino presence and more renters.
+The red areas receive more retirement and disability benefits, have a strong Defense presence, multi-unit older homes and single households. Many people live in group quarters, particularly college dorms and there seem to be a declining older population. The blue areas are short on health insurance, have a strong Mexican presence, a younger, increasing population and lots of transporting and warehousing activity.
 
-## Growing suburbia
+
+## Coastal Metropolises
 
 ```{r results='asis', fig.width=15, fig.height=8}
 eigenmap(9) 
 ```
-This map shows a very interesting ring pattern around some cities, including Atlanta, Dallas an Minneapolis. The red areas show strong population increase, including migration, and increase in available housing and high median income. The blue areas have a higher death rate, Federal Government payments to individuals, more widows, single person households and older people receiving social security.
 
-## Pennsylvania
+The red areas have high employment in farming, small family run farms, home ownership, rural population, leaning Reform party (kid you not). The blue areas have more education, health and social services, more management, more finance, insurance and real estate and more minority-owned firms.
+
+## Upper Midwest
 ```{r results='asis', fig.width=15, fig.height=8}
+
 eigenmap(10) 
 ```
 
-The red areas receive more retirement and disability benefits, have a strong Defense presence, multi-unit older homes and single households. Many people live in group quarters, particularly college dorms and there seem to be a declining older population. The blue areas are short on health insurance, have a strong Mexican presence, a younger, increasing population and lots of transporting and warehousing activity.
+The related variables include cropland, educational achievement, farm operators, larger farms, government spending not directed to individuals, older houses, home workers, rural and white. The blue area covers most of the rest of the country. Maybe it's more intuitive to think of these variables as lower in the red areas rather than higher elsewhere, but it's all relative. From the "blue" perspective we see lower educational achievement, single moms, separated people, poverty and supplemental security income. 
+
+
+
 
 ## Conclusion
 
